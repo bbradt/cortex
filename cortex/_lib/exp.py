@@ -82,7 +82,7 @@ def save(model, prefix=''):
                 d_[k] = v
         return d_
 
-    #for net in model.nets.values():
+    # for net in model.nets.values():
     #    if hasattr(net, 'states'):
     #        net.states.clear()
 
@@ -97,6 +97,10 @@ def save(model, prefix=''):
     file_path = path.join(binary_dir, '{}.t7'.format(prefix))
     logger.info('Saving checkpoint {}'.format(file_path))
     torch.save(state, file_path)
+
+    for net in model.nets.values():
+        if hasattr(net, 'all_states'):
+            net.all_states.clear()
 
 
 def setup_out_dir(out_path, global_out_path, name=None, clean=False):

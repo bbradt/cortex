@@ -37,9 +37,10 @@ import os.path
 import numpy as np
 from glob import glob
 import scipy.io as sio
+import torch
 
-IMG_EXTENSIONS = ['.mat']
-DEFAULT_data_keys = ['x1']
+IMG_EXTENSIONS = ['*.mat']
+DEFAULT_data_keys = ['smri']
 DEFAULT_label_key = 'y'
 
 def make_dataset(dir, patterns=None):
@@ -89,7 +90,7 @@ class ImageFolder(data.Dataset):
         imgs (list): List of (image path, class_index) tuples
     '''
 
-    def __init__(self, root, loader=sio.loadmat, patterns=None,
+    def __init__(self, root, loader=sio.loadmat, patterns=['*.mat'],
                  data_keys=DEFAULT_data_keys,
                  label_key=DEFAULT_label_key, transform=None):
         imgs = make_dataset(root, patterns)
@@ -102,7 +103,7 @@ class ImageFolder(data.Dataset):
                     "\n"
                     "Supported image extensions are: " +
                     ",".join(IMG_EXTENSIONS)))
-
+        self.classes = [0, 1]
         self.root = root
         self.images = imgs
         self.transform = transform
@@ -124,12 +125,18 @@ class ImageFolder(data.Dataset):
             tuple: (image, target) where target is class_index of the target
             class.
         """
-        label = self.imgs[index][self.label_key]
-        img = np.array([self.imgs[index][key] for key in self.data_keys])
+        #print(self.images)
+        #print(type(self.images))
+        datafile, dummy = self.images[index]
+        frame = self.loader(datafile)
+        #print(frame)
+        img = {key: np.array(frame[key]) for key in self.data_keys}
+        label = frame[self.label_key]
         if self.transform is not None:
-            img = self.transform(img)
+            for key in img.keys():
+                img[key] = self.transform(img[key])
 
-        return np.array(img), label
+        return img['smri'], label
 
     def __len__(self):
         return len(self.images)

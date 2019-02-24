@@ -20,7 +20,7 @@ class MultiModalPlugin(DatasetPlugin):
         test_path = path.join(data_path, 'val')
 
         transform = transforms.Compose([
-            transforms.ToTensor(),
+           # transforms.ToTensor(),
             transforms.Lambda(lambda x: unit_interval_normalization(x))
         ])
 
@@ -28,12 +28,13 @@ class MultiModalPlugin(DatasetPlugin):
         test_set = Dataset(root=test_path, transform=transform)
         print (len(train_set), len(test_set))
         input_names = ['images', 'labels', 'index']
-
-        dim_c, dim_x, dim_y, dim_z = train_set[0][0].size()
+        print(train_set[0][0].size)
+        dim_c, dim_x, dim_y, dim_z = train_set[0][0].size
+        print(dim_c, dim_x, dim_y, dim_z)
         print (train_set[0][0].min(), train_set[0][0].max())
         dim_l = len(train_set.classes)
     
-        dims = dict(x=dim_x, y=dim_y, z=dim_z, c=dim_c, labels=dim_l)
+        dims = dict(c=dim_c, x=dim_x,y=dim_y, z=dim_z, labels=dim_l)
 
         self.add_dataset('train', train_set)
         self.add_dataset('test', test_set)

@@ -95,13 +95,16 @@ resnet_encoder_args_ = dict(dim_h=64, batch_norm=True, f_size=3, n_steps=3)
 mnist_encoder_args_ = dict(dim_h=64, batch_norm=True, f_size=5,
                            pad=2, stride=2, min_dim=7)
 convnet_encoder_args_ = dict(dim_h=64, batch_norm=True, n_steps=3)
-
+fc_encoder_args_ = dict(dim_h=64, batch_norm=True)
 
 def update_encoder_args(x_shape, model_type='convnet', encoder_args=None):
     encoder_args = encoder_args or {}
     if model_type == 'resnet':
         from cortex.built_ins.networks.resnets import ResEncoder as Encoder
         encoder_args_ = {k: v for k, v in resnet_encoder_args_.items()}
+    elif model_type == 'fc':
+        from cortex.built_ins.networks.fully_connected import FullyConnectedNet as Encoder
+        encoder_args_ = {k:v for k, v in fc_encoder_args_.items()}
     elif model_type == 'convnet':
         from cortex.built_ins.networks.convnets import SimpleConvEncoder as Encoder
         encoder_args_ = {k: v for k, v in convnet_encoder_args_.items()}

@@ -6,7 +6,7 @@ This is not necessary to use cortex: these are just convenience networks.
 
 import torch.nn as nn
 import torch
-
+import copy
 from .utils import apply_nonlinearity, get_nonlinearity, finish_layer_1d
 
 
@@ -22,7 +22,7 @@ class BaseNet(nn.Module):
         super(BaseNet, self).__init__()
 
         self.models = nn.Sequential()
-
+        self.all_states = []
         self.output_nonlinearity = output_nonlinearity
         self.layer_nonlinearity = get_nonlinearity(nonlinearity)
 
@@ -40,6 +40,8 @@ class BaseNet(nn.Module):
             x = model(x)
             self.states.append(x)
         x = apply_nonlinearity(x, nonlinearity, **nonlinearity_args)
+        self.states.append(x)
+        self.all_states.append([s.clone() for s in self.states])
         return x
 
     def get_h(self, dim_h, n_levels=None):
@@ -62,9 +64,11 @@ class BaseNet(nn.Module):
 
         if dim_h is None or len(dim_h) == 0:
             return dim_in
-
+        if type(dim_in) is tuple:
+            dim_in = dim_in[-1]
         for dim_out in dim_h:
             name = 'linear_({}/{})'.format(dim_in, dim_out)
+            print("Name is %s" % name)
             self.models.add_module(name, Linear(dim_in, dim_out))
             finish_layer_1d(
                 self.models,
