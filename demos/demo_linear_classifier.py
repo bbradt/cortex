@@ -20,12 +20,12 @@ class MyClassifier(ModelPlugin):
     '''
 
     defaults = dict(
-        data=dict(batch_size=64, inputs=dict(inputs='images')),
+        data=dict(batch_size=32, inputs=dict(inputs='images')),
         optimizer=dict(optimizer='Adam', learning_rate=1e-3),
         train=dict(epochs=200, save_on_best='losses.classifier', archive_every=1))
 
     def build(self, classifier_type='fc',
-              classifier_args=dict(dropout=0.0, dim_h=[4])):
+              classifier_args=dict(dropout=0.0, dim_h=[8, 4])):
         '''Builds a simple image classifier.
 
         Args:

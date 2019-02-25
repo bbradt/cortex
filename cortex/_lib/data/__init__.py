@@ -15,7 +15,7 @@ _PLUGINS = {}
 
 def setup(source: str=None, batch_size=64, n_workers: int=4,
           skip_last_batch: bool=False, inputs=dict(),
-          copy_to_local: bool=False, data_args={}, shuffle: bool=True):
+          copy_to_local: bool=False, data_args={}, shuffle: bool=False):
     """
     Dataset entrypoint.
 

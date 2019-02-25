@@ -33,7 +33,7 @@ class DataHandler:
         self.inputs.update(**kwargs)
 
     def add_dataset(self, source, dataset_entrypoint,
-                    n_workers=4, shuffle=True, DataLoader=None):
+                    n_workers=4, shuffle=False, DataLoader=None):
         DataLoader = (DataLoader or dataset_entrypoint._dataloader_class or
                       torch.utils.data.DataLoader)
 
