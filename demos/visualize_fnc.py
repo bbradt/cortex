@@ -1,29 +1,39 @@
 import os
+import matlab.engine
+print("starting matlab engine")
+eng = matlab.engine.start_matlab()
+print("engine started")
+from matkmeans import MKMeans
 import torch
 import numpy as np
 import sklearn.metrics as skm
 import sklearn.cluster as skc
+import matplotlib
+try: 
+   matplotlib.use('TkAgg')
+except Exception:
+   print("Cant use TkAgg")
+   pass
 from matplotlib import pyplot as plt
 import matplotlib.ticker as ticker
 from scipy.stats.stats import pearsonr
-from mutual_info import mutual_information_2d
+# from mutual_info import mutual_information_2d
 from npeet import entropy_estimators as ee
 from scipy.stats import ttest_ind as ttest
 import scipy.io as sio
 from vfnc_utils import local_maxima
 from itertools import combinations
+from scipy.spatial.distance import cdist
 import copy
-from matkmeans import MKMeans
-
 CORTEXPATH = "/export/mialab/users/bbaker/projects/cortex/"
 DATASET = "iris"
 NAME = "MyClassifier"
 NETNAME = "classifier"
 ISCLASSIFIER = True
 KMIN = 2
-KMAX = 10
-EPOCHS = 162
-WINSIZE = 22
+KMAX = 30
+EPOCHS = 200
+WINSIZE = 32
 FILE_FORM = "%s_%d.t7"
 BATCH = 64
 FILE_FOLDER = os.path.join(CORTEXPATH, "results/%s/binaries/" % DATASET)
@@ -137,7 +147,7 @@ for t in range(EPOCHS - WINSIZE - 1):
                 subjects[subject_index][:,epoch] = batches[subject_index,:]
             last_batch_end += batches.shape[0]
         for subject_index in range(num_subj):
-            C = np.corrcoef(subjects[subject_index])
+            C = METRIC(subjects[subject_index], subjects[subject_index])
             if len(Xs[grab]) <= subject_index:
                 Xs[grab].append([])
                 Xsact[grab].append([])
@@ -180,9 +190,10 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
     for k in range(KMIN, KMAX + 1):
         print("Evaluating %s exemplars at k=%d" % (grab, k))
         #kmeans = skc.KMeans(n_clusters=k, random_state=0, n_jobs=10, n_init=10).fit(np.array(X_ex[grab]))
-        kmeans = MKMeans(n_clusters=k, n_init=10).fit(np.array(X_ex[grab]))
-        silhouette = skm.silhouette_score(np.array(X_ex[grab]), kmeans.labels_)
-        print("silhouette %f, k=%d" % (best_sil, k))
+        kmeans = MKMeans(eng, n_clusters=k, n_init=10).fit(np.array(X_ex[grab]))
+        silhouette = sum(np.min(np.nan_to_num(cdist(np.array(X_ex[grab]), kmeans.cluster_centers_, 'correlation'), np.inf), axis=1))
+# skm.silhouette_score(np.array(X_ex[grab]), kmeans.labels_)
+        print("silhouette %f, k=%d" % (silhouette, k))
         silhouettes.append(silhouette)
         km.append(kmeans)
         #best_sil = 0
@@ -198,12 +209,19 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
         #print("silhouette %f, k=%d" % (best_sil, k))
         #silhouettes.append(best_sil)
         #km.append(best_kmeans)
-    best = silhouettes.index(np.max(silhouettes))
+    # best = silhouettes.index(np.max(silhouettes))
     plt.plot(range(KMIN, KMAX + 1), silhouettes, lw=2)
     plt.xlabel('k')
     plt.ylabel('silhouette score')
     plt.savefig('%s/%s_%s_silhouettes.png' % (DATASET, DATASET, grab), bbox_inches='tight')
+    plt.show()
+    input_k = input('k=?')
+    k = int(input_k)
+    best = list(range(KMIN,KMAX+1)).index(k)
+    print("Chose k=%d" % k)
     plt.close('all')
+
+
 
     exemplar_centroids = km[best].cluster_centers_
     k = list(range(KMIN, KMAX + 1))[best]
@@ -211,7 +229,7 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
     if do_exemplars:
         print("Performing KMeans on full data")
         #kmeans = skc.KMeans(n_clusters=k, random_state=0, n_jobs=10, init=exemplar_centroids, n_init=1).fit(np.array(X[grab]))
-        kmeans = MKMeans(n_clusters=k, n_init=1, init=exemplar_centroids).fit(np.array(X[grab]))
+        kmeans = MKMeans(eng, n_clusters=k, n_init=1, init=exemplar_centroids).fit(np.array(X[grab]))
         # kmeans = MKmeans(n_clusters=k, init=exemplar_centroids, n_init=1).fit(np.array(X[grab]))
         # kmeans = nkm.Kmeans(np.array(X[grab]), centres=exemplar_centroids)
         # kmeans.cluster_centers_ = kmeans.centres
@@ -425,6 +443,8 @@ plt.xlabel("Epoch")
 plt.ylabel("Accuracy")
 plt.savefig("%s/%s_acc.png" % (DATASET, DATASET))
 plt.close('all')
+
+eng.quit()
 
 #sio.savemat("%s/%s_results.mat" % (DATASET, DATASET), 
 #{"medians":medians,
