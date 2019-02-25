@@ -10,6 +10,7 @@ import sklearn.metrics as skm
 import sklearn.cluster as skc
 from matplotlib import pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.gridspec as gridspec
 from scipy.stats.stats import pearsonr
 # from mutual_info import mutual_information_2d
 # from npeet import entropy_estimators as ee
@@ -20,6 +21,9 @@ from itertools import combinations
 from scipy.spatial.distance import cdist
 import copy
 import matplotlib
+import seaborn as sb
+import json
+sb.set()
 try: 
    matplotlib.use('TkAgg')
 except Exception:
@@ -27,6 +31,11 @@ except Exception:
    pass
 CORTEXPATH = "/home/bbaker/projects/cortex/"
 DATASET = "iris"
+HISTORY_FILE = "%s_history.json" % (DATASET)
+if os.path.exists(HISTORY_FILE):
+    HISTORY = json.load(open(HISTORY_FILE, 'r'))
+else:
+    HISTORY = {}
 NAME = "MyClassifier"
 NETNAME = "classifier"
 ISCLASSIFIER = True
@@ -36,6 +45,9 @@ EPOCHS = 200
 WINSIZE = 20
 FILE_FORM = "%s_%d.t7"
 BATCH = 32
+
+ID = "data_%s_kmin_%s_kmax_%s_epochs_%s_win_%s_batch_%s"
+
 FILE_FOLDER = os.path.join(CORTEXPATH, "results/%s/binaries/" % DATASET)
 DATAPATH = os.path.join(CORTEXPATH, "data", DATASET)
 train_fp = os.path.join(DATAPATH, "%s_train.npy" % DATASET)
@@ -184,44 +196,33 @@ if not os.path.exists(os.path.join(DATASET, 'groups')):
     os.makedirs(os.path.join(DATASET, "groups"))
 
 for grab in list(GRAB_MODELS.keys()) + ['all']:
-
+    if grab not in HISTORY.keys():
+        HISTORY[grab] = {}
     # Silhouette Score evaluation
     silhouettes = []
     km = []
     for k in range(KMIN, KMAX + 1):
-        print("Evaluating %s exemplars at k=%d" % (grab, k))
-        #kmeans = skc.KMeans(n_clusters=k, random_state=0, n_jobs=10, n_init=10).fit(np.array(X_ex[grab]))
-        kmeans = MKMeans(eng, n_clusters=k, n_init=20).fit(np.array(X_ex[grab]))
+        kmeans = MKMeans(eng, n_clusters=k, n_init=100).fit(np.array(X_ex[grab]))
         silhouette = sum(np.min(np.nan_to_num(cdist(np.array(X_ex[grab]), kmeans.cluster_centers_, 'correlation'), np.inf), axis=1))
-# skm.silhouette_score(np.array(X_ex[grab]), kmeans.labels_)
         print("silhouette %f, k=%d" % (silhouette, k))
         silhouettes.append(silhouette)
         km.append(kmeans)
-        #best_sil = 0
-        #best_kmeans = None
-        #for n_iter in range(10):
-        #    kmeans = nkm.Kmeans(np.array(X_ex[grab]), k=k, metric=np.correlate)
-        #    kmeans.cluster_centers_ = kmeans.centres
-        #    kmeans.labels_ = kmeans.Xtocentre
-        #    silhouette = skm.silhouette_score(np.array(X_ex[grab]), kmeans.labels_)
-        #    if silhouette > best_sil:
-        #        best_kmeans = kmeans
-        #        best_sil = silhouette
-        #print("silhouette %f, k=%d" % (best_sil, k))
-        #silhouettes.append(best_sil)
-        #km.append(best_kmeans)
-    # best = silhouettes.index(np.max(silhouettes))
-    matplotlib.use('TkAgg')
-    plt.plot(range(KMIN, KMAX + 1), silhouettes, lw=2)
-    plt.xlabel('k')
-    plt.ylabel('silhouette score')
-    plt.show()
-    input_k = input('k=?')
-    k = int(input_k)
+    if 'k' in HISTORY[grab].keys():
+        k = int(HISTORY[grab]['k'])
+    else:
+        matplotlib.use('TkAgg')
+        plt.plot(range(KMIN, KMAX + 1), silhouettes, lw=2)
+        plt.xlabel('k')
+        plt.ylabel('silhouette score')
+        plt.show() 
+        input_k = input('k=?')
+        k = int(input_k)
+        HISTORY[grab]['k'] = k
+        json.dump(HISTORY, open(HISTORY_FILE, 'w'))
     print("Chose k=%d" % k)
     best = list(range(KMIN,KMAX+1)).index(k)
     plt.plot(range(KMIN, KMAX + 1), silhouettes, lw=2)
-    plt.scatter(int(input_k), silhouettes[best], color='red')
+    plt.scatter(k, silhouettes[best], color='red')
     plt.xlabel('k')
     plt.ylabel('silhouette score')
     plt.savefig('%s/%s_%s_silhouettes.png' % (DATASET, DATASET, grab), bbox_inches='tight')
@@ -232,12 +233,7 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
     print("Best silhouette %f, k=%d" % (silhouettes[best], k))
     if do_exemplars:
         print("Performing KMeans on full data")
-        #kmeans = skc.KMeans(n_clusters=k, random_state=0, n_jobs=10, init=exemplar_centroids, n_init=1).fit(np.array(X[grab]))
         kmeans = MKMeans(eng, n_clusters=k, n_init=1, init=exemplar_centroids).fit(np.array(X[grab]))
-        # kmeans = MKmeans(n_clusters=k, init=exemplar_centroids, n_init=1).fit(np.array(X[grab]))
-        # kmeans = nkm.Kmeans(np.array(X[grab]), centres=exemplar_centroids)
-        # kmeans.cluster_centers_ = kmeans.centres
-        # kmeans.labels_ = kmeans.Xtocentre
     else:
         kmeans = km[best]
     # End silhouette score evaluation
@@ -266,9 +262,10 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
         C[grab][i] = C[grab][i].T
         C[grab][i][triu_inds[grab]] = kmeans.cluster_centers_[i]
         fig, ax = plt.subplots()
-        img = ax.imshow(C[grab][i], vmin=-1, vmax=1, interpolation=None)
+        img = ax.imshow(C[grab][i], vmin=-1, vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],LAYER_SIZES[grab],0))
 
         ax.autoscale(False)
+        # ax.grid(False)
         ax.set_xticks(range(LAYER_SIZES[grab]))
         ax.set_yticks(range(LAYER_SIZES[grab]))
         plt.colorbar(img, ax=ax)
@@ -280,8 +277,8 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
                 if grab2 == 'all':
                     continue
                 bound = last_bound + LAYER_SIZES[grab2]
-                plt.plot([bound - 0.5, bound - 0.5], [-0.5, LAYER_SIZES['all'] + 0.5], 'k-', lw=1.5)  # Vertical
-                plt.plot([-0.5, LAYER_SIZES['all'] + 0.5], [bound - 0.5, bound - 0.5], 'k-', lw=1.5)  # Horizontal
+                plt.plot([bound - 0, bound - 0], [-0, LAYER_SIZES['all'] + 0], 'k-', lw=1.5)  # Vertical
+                plt.plot([-0, LAYER_SIZES['all'] + 0], [bound - 0, bound - 0], 'k-', lw=1.5)  # Horizontal
                 last_bound = bound
         plt.savefig("%s/%s_%s_centroid_%d.png" % (DATASET, DATASET, grab, i), bbox_inches='tight')
         plt.close('all')
@@ -289,7 +286,7 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
         median_act = np.median(np.hstack(k_acts), 1).flatten().reshape(1,LAYER_SIZES[grab])
 
         fig, ax = plt.subplots()
-        img = ax.imshow(median_act, interpolation=None)
+        img = ax.imshow(median_act, vmin=0, vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],1,0))
 
         ax.autoscale(False)
         ax.set_xticks(range(LAYER_SIZES[grab]))
@@ -304,13 +301,19 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
 
     # Begin group plotting
     medians = []
+    median_acts = []
+    group_states = []
     groups = []
+    frequencies = []
     for li, label in enumerate(np.unique(train_label)):
         # Group centroid plotting
         group = [x for y, x in zip(train_label, Xs[grab]) if y == label]
         groups.append([])
         group_k_labels = [l for y, l in zip(train_label, Ys[grab]) if y == label]
+        median_acts.append([])
         medians.append([])
+        frequencies.append([])
+        group_states.append([])
         group_act = [x for y, x in zip(train_label, Xsact[grab]) if y == label]
         for k_i in range(k):
             group_k = []
@@ -329,9 +332,12 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
                 group_k.append(subject_k_med)
                 group_k_act.append(subject_k_act_med)
             groups[li].append(group_k)
+            print("%d subjects of group %d show centroid %d" % (len(group_k), label, k_i))
+            frequencies[li].append(len(group_k)/len(group))
             median = np.zeros((LAYER_SIZES[grab], LAYER_SIZES[grab]))
             if len(group_k) == 0: 
                 medians[li].append(copy.deepcopy(median))
+                median_acts[li].append(np.zeros((1, LAYER_SIZES[grab])))
                 continue
             median_data = np.median(np.vstack(group_k), 0)
             median[triu_inds[grab]] = median_data
@@ -339,9 +345,10 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
             median[triu_inds[grab]] = median_data
             medians[li].append(copy.deepcopy(median))
             median_act = np.median(np.vstack(group_k_act), 0).reshape(1,LAYER_SIZES[grab])
+            median_acts[li].append(copy.deepcopy(median_act))
 
             fig, ax = plt.subplots()
-            img = ax.imshow(medians[li][k_i], interpolation=None)
+            img = ax.imshow(medians[li][k_i], vmin=-1, vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],0,0))
 
             ax.autoscale(False)
             ax.set_xticks(range(LAYER_SIZES[grab]))
@@ -355,14 +362,14 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
                     if grab2 == 'all':
                         continue
                     bound = last_bound + LAYER_SIZES[grab2]
-                    plt.plot([bound - 0.5, bound - 0.5], [-0.5, LAYER_SIZES['all'] + 0.5], 'k-', lw=1.5)  # Vertical
-                    plt.plot([-0.5, LAYER_SIZES['all'] + 0.5], [bound - 0.5, bound - 0.5], 'k-', lw=1.5)  # Horizontal
+                    plt.plot([bound , bound], [0, LAYER_SIZES['all'] + 0], 'k-', lw=1.5)  # Vertical
+                    plt.plot([0, LAYER_SIZES['all']], [bound - 0, bound - 0], 'k-', lw=1.5)  # Horizontal
                     last_bound = bound
             plt.savefig("%s/groups/%s_group_%s_%s_centroid_%s.png" %
                         (DATASET, DATASET, label, grab, k_i), bbox_inches='tight')
             plt.close('all')
             fig, ax = plt.subplots()
-            img = ax.imshow(median_act,vmin=0,vmax=1, interpolation=None)
+            img = ax.imshow(median_act,vmin=0,vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],1,0))
 
             ax.autoscale(False)
             ax.set_xticks(range(LAYER_SIZES[grab]))
@@ -374,8 +381,8 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
                     if grab2 == 'all':
                         continue
                     bound = last_bound + LAYER_SIZES[grab2]
-                    plt.plot([bound - 0.5, bound - 0.5], [-0.5, LAYER_SIZES['all'] + 0.5], 'k-', lw=1.5)  # Vertical
-                    plt.plot([-0.5, LAYER_SIZES['all'] + 0.5], [bound - 0.5, bound - 0.5], 'k-', lw=1.5)  # Horizontal
+                    plt.plot([bound - 0, bound - 0], [-0, LAYER_SIZES['all'] + 0], 'k-', lw=1.5)  # Vertical
+                    plt.plot([-0, LAYER_SIZES['all'] + 0], [bound - 0, bound - 0], 'k-', lw=1.5)  # Horizontal
                     last_bound = bound
             #ax.yaxis.set_major_locator(ticker.MultipleLocator(4))
             #ax.xaxis.set_major_locator(ticker.MultipleLocator(4))
@@ -388,6 +395,7 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
         group_s = [x for y, x in zip(train_label, Xs[grab]) if y == label]
         group_k_labels = [l for y, l in zip(train_label, Ys[grab]) if y == label]
         median_transitions = np.median(np.vstack(group_k_labels),0)
+        group_states[li].append(median_transitions)
         plt.plot(median_transitions, lw=2)
         plt.title("Group %s State Transitions" % label)
         plt.ylabel("State")
@@ -397,37 +405,17 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
         plt.close('all')
         
         # End Group Transition plotting
-    
+    fig, ax = plt.subplots(1,1)
+    plots = []
+    for li, l in enumerate(np.unique(train_label)):
+        plots.append(ax[0].plot(group_states[li]))
+    ax.legend(plots, list(np.unique(train_label)))
+    plt.savefig("%s/groups/%s_aggregate_group_states_%s.png" % (DATASET, DATASET, grab))
+    plt.close('all')
+ 
     # Begin Group differences
     comparisons = combinations(np.unique(train_label), 2)
     for comp in comparisons:
-        for k_i in range(k):
-            A = medians[comp[0]][k_i]
-            B = medians[comp[1]][k_i]
-            if len(A) == 0 or len(B) == 0:
-                continue
-            diff = A - B
-            fig, ax = plt.subplots()
-            img = ax.imshow(diff, interpolation=None)
-
-            ax.autoscale(False)
-            ax.set_xticks(range(LAYER_SIZES[grab]))
-            ax.set_yticks(range(LAYER_SIZES[grab]))
-            plt.colorbar(img, ax=ax)
-            #ax.yaxis.set_major_locator(ticker.MultipleLocator(4))
-            #ax.xaxis.set_major_locator(ticker.MultipleLocator(4))
-            if grab == 'all':
-                last_bound = 0
-                for grab2 in GRAB_MODELS.keys():
-                    if grab2 == 'all':
-                        continue
-                    bound = last_bound + LAYER_SIZES[grab2]
-                    plt.plot([bound - 0.5, bound - 0.5], [-0.5, LAYER_SIZES['all'] + 0.5], 'k-', lw=1.5)  # Vertical
-                    plt.plot([-0.5, LAYER_SIZES['all'] + 0.5], [bound - 0.5, bound - 0.5], 'k-', lw=1.5)  # Horizontal
-                    last_bound = bound
-            plt.savefig("%s/groups/%s_diffs_groups_%s_%s_%s_centroid_%s.png" %
-                        (DATASET, DATASET, comp[0], comp[1], grab, k_i), bbox_inches='tight')
-            plt.close('all')
         for k_i in range(k):
             ttest_thresh = 0.05
             A = groups[comp[0]][k_i]
@@ -437,13 +425,14 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
             ttest_val = ttest(A, B)
             diff_data = ttest_val.pvalue
             diff_data[diff_data > ttest_thresh] = np.nan
-            diff = np.zeros((LAYER_SIZES[grab], LAYER_SIZES[grab]))
+            diff = np.empty((LAYER_SIZES[grab], LAYER_SIZES[grab]))
+            diff[:] = np.nan
             diff[triu_inds[grab]] = diff_data
             diff = diff.T
             diff[triu_inds[grab]] = diff_data
             diff[np.diag_indices(LAYER_SIZES[grab])] = np.nan
             fig, ax = plt.subplots()
-            img = ax.imshow(diff, interpolation=None)
+            img = ax.imshow(diff, interpolation=None, extent=(0,LAYER_SIZES[grab],LAYER_SIZES[grab],0))
 
             ax.autoscale(False)
             ax.set_xticks(range(LAYER_SIZES[grab]))
@@ -457,16 +446,73 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
                     if grab2 == 'all':
                         continue
                     bound = last_bound + LAYER_SIZES[grab2]
-                    plt.plot([bound - 0.5, bound - 0.5], [-0.5, LAYER_SIZES['all'] + 0.5], 'k-', lw=1.5)  # Vertical
-                    plt.plot([-0.5, LAYER_SIZES['all'] + 0.5], [bound - 0.5, bound - 0.5], 'k-', lw=1.5)  # Horizontal
+                    plt.plot([bound - 0, bound - 0], [-0, LAYER_SIZES['all'] + 0], 'k-', lw=1.5)  # Vertical
+                    plt.plot([-0, LAYER_SIZES['all'] + 0], [bound - 0, bound - 0], 'k-', lw=1.5)  # Horizontal
                     last_bound = bound
             plt.savefig("%s/groups/%s_ttest_groups_%s_%s_%s_centroid_%s.png" %
                         (DATASET, DATASET, comp[0], comp[1], grab, k_i), bbox_inches='tight')
             plt.close('all')
+
             
     # End Group differences
+    fig = plt.figure(figsize=(50, 50))
+    fig.subplots_adjust(hspace=0.05)
+    gs1 = gridspec.GridSpec(len(np.unique(train_label))*2, k)
+    gs1.update(wspace=0.05, hspace=0.025)
+    #fig, axes = plt.subplots(nrows=len(np.unique(train_label))*2, ncols=k, figsize=(30, 30))
+    plt.subplots_adjust(hspace=0.05)
+    for li, label in enumerate(np.unique(train_label)):
+        for ki in range(k):
+            ax = plt.subplot(gs1[2*li*k+ki])# axes[2*li, ki]
+            # ax.grid(False)
+            img = ax.imshow(medians[li][ki], vmin=-1, vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],LAYER_SIZES[grab],0))
+            ax.autoscale(False)
+            ax.set_title("Group %d - Centroid %d" % (li, ki))
+            ax.set_xticks(range(LAYER_SIZES[grab]))
+            ax.set_yticks(range(LAYER_SIZES[grab]))
+            ax.set_aspect('equal')
+            #plt.colorbar(img, ax=ax)
+            if grab == 'all':
+                last_bound = 0
+                for grab2 in GRAB_MODELS.keys():
+                    if grab2 == 'all':
+                        continue
+                    bound = last_bound + LAYER_SIZES[grab2]
+                    ax.plot([bound - 0, bound - 0], [-0, LAYER_SIZES['all'] + 0], 'k-', lw=1.5)  # Vertical
+                    ax.plot([-0, LAYER_SIZES['all'] + 0], [bound - 0, bound - 0], 'k-', lw=1.5)  # Horizontal
+                    last_bound = bound
+            ax = plt.subplot(gs1[2*li*k+ki+k])
+            img = ax.imshow(median_acts[li][ki], vmin=0, vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],1,0))
+            ax.autoscale(False)
+            ax.set_title("Group %d - Activations %d" % (li, ki))
+            ax.set_xticks(range(LAYER_SIZES[grab]))
+            ax.set_yticks(range(1))
+            #plt.colorbar(img, ax=ax)
+            if grab == 'all':
+                last_bound = 0
+                for grab2 in GRAB_MODELS.keys():
+                    if grab2 == 'all':
+                        continue
+                    bound = last_bound + LAYER_SIZES[grab2]
+                    ax.plot([bound - 0, bound - 0], [-0, LAYER_SIZES['all'] + 0], 'k-', lw=1.5)  # Vertical
+                    ax.plot([-0, LAYER_SIZES['all'] + 0], [bound - 0, bound - 0], 'k-', lw=1.5)  # Horizontal
+                    last_bound = bound
+    plt.savefig("%s/groups/%s_aggregated_group_centroids_%s.png" %
+                (DATASET, DATASET, grab), bbox_inches='tight')
+    plt.close('all')
+    width = 0.25
+    fig, ax = plt.subplots(1,1)
+    plots=[]
+    for li, label in enumerate(np.unique(train_label)):
+        plots.append(ax.bar(np.array(list(range(k)))+width*li, frequencies[li], width=width))
+    ax.set_xticks(np.array(list(range(k)))+width/2)
+    ax.set_xticklabels(list(range(k)))
+    ax.legend(tuple(plots), np.unique(train_label).tolist())
     
-
+    plt.savefig("%s/groups/%s_aggregated_group_frequencies_%s.png" %
+                (DATASET, DATASET, grab), bbox_inches='tight')
+    plt.close('all') 
+            
     # End group plotting
 
     # Transition plotting
@@ -492,7 +538,7 @@ plt.savefig("%s/%s_acc.png" % (DATASET, DATASET))
 plt.close('all')
 
 eng.quit()
-
+json.dump(HISTORY, open(HISTORY_FILE, 'w'))
 #sio.savemat("%s/%s_results.mat" % (DATASET, DATASET), 
 #{"medians":medians,
 #"groups":groups,
