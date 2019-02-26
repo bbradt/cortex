@@ -9,8 +9,8 @@ def unit_interval_normalization(x):
     return (x - x.min()) / (x.max() - x.min())
 
 
-class MultiModalPlugin(DatasetPlugin):
-    sources = ['MultiModal']
+class SmriModalPlugin(DatasetPlugin):
+    sources = ['SmriModal']
 
     def handle(self, source, copy_to_local=False, **transform_args):
         Dataset = self.make_indexing(NII_ImageFolder)
@@ -21,28 +21,21 @@ class MultiModalPlugin(DatasetPlugin):
 
         transform = transforms.Compose([
            # transforms.ToTensor(),
-            transforms.Lambda(lambda x: unit_interval_normalization(x))
+            transforms.Lambda(lambda x: unit_interval_normalization(x)),
+          # transforms.ToTensor()
         ])
 
         train_set = Dataset(root=train_path, transform=transform)
         test_set = Dataset(root=test_path, transform=transform)
         print (len(train_set), len(test_set))
-        input_names = ['images', 'labels', 'index']
+        input_names = ['images', 'targets', 'index']
         print(train_set[0][0].shape)
-        if len(train_set[0][0].shape) == 4:
-            dim_c, dim_x, dim_y, dim_z = train_set[0][0].shape
-        else:
-            dim_x, dim_y, dim_z = train_set[0][0].shape
-            dim_c = 1
-        print(dim_c, dim_x, dim_y, dim_z)
+        dim_y= train_set[0][0].size
+        # print(dim_c, dim_x, dim_y, dim_z)
         print (train_set[0][0].min(), train_set[0][0].max())
         dim_l = len(train_set.classes)
     
-        if dim_c > 1:
-            dims = dict(c=dim_c, x=dim_x,y=dim_y, z=dim_z, labels=dim_l)
-        else:
-            dims = dict(x=dim_x,y=dim_y, z=dim_z, labels=dim_l)
-            
+        dims = dict(x=1,y=dim_y, labels=dim_l)
 
         self.add_dataset('train', train_set)
         self.add_dataset('test', test_set)
@@ -51,4 +44,4 @@ class MultiModalPlugin(DatasetPlugin):
 
         self.set_scale((0, 1))
 
-register_plugin(MultiModalPlugin)
+register_plugin(SmriModalPlugin)

@@ -109,12 +109,33 @@ class ImageFolder(data.Dataset):
         self.transform = transform
         self.data_keys = data_keys
         self.label_key = label_key
-
         self.loader = loader
+        data = []
+        labels = []
+        for i, image in enumerate(self.images):
+            datafile, dummy = image
+            frame = self.loader(datafile)
+            #print(frame)
+            label = max(int(frame[self.label_key]), 0)
+            labels.append(label)
+            img = {key: np.array(frame[key]) for key in self.data_keys}
+            img['smri'] = np.array(img['smri'].flatten(), dtype=np.float64)
+            print("Loading %d/%d - %s - label %d" % (i, len(self.images), datafile, label))
+            if self.transform is not None:
+                for key in img.keys():
+                    img[key] = self.transform(img[key])
+            data.append(img['smri'])
+        self.data = np.vstack(data)
+        self.labels = np.array(labels)
+        self.data, self.labels = self.prepare()
 
     '''
         Gives us a tuple from the array at (index) of: (image, label)
     '''
+
+    def prepare(self, *args):
+            return (torch.tensor(self.data,dtype=torch.float),
+                    torch.tensor(self.labels, dtype=torch.long))
 
     def __getitem__(self, index):
         """
@@ -127,16 +148,19 @@ class ImageFolder(data.Dataset):
         """
         #print(self.images)
         #print(type(self.images))
+        '''
         datafile, dummy = self.images[index]
         frame = self.loader(datafile)
         #print(frame)
         img = {key: np.array(frame[key]) for key in self.data_keys}
-        label = frame[self.label_key]
+        img['smri'] = np.array(img['smri'].flatten(), dtype=np.float64)
+        label = int(frame[self.label_key])
         if self.transform is not None:
             for key in img.keys():
                 img[key] = self.transform(img[key])
 
-        return img['smri'], label
+        return img['smri'], label'''
+        return np.array(self.data[index]), self.labels[index]
 
     def __len__(self):
         return len(self.images)
