@@ -23,6 +23,7 @@ import copy
 import matplotlib
 import seaborn as sb
 import json
+import random
 sb.set()
 try: 
    matplotlib.use('TkAgg')
@@ -30,7 +31,7 @@ except Exception:
    print("Cant use TkAgg")
    pass
 CORTEXPATH = "/home/bbaker/projects/cortex/"
-DATASET = "iris"
+DATASET = "SmriModal"
 HISTORY_FILE = "%s_history.json" % (DATASET)
 if os.path.exists(HISTORY_FILE):
     HISTORY = json.load(open(HISTORY_FILE, 'r'))
@@ -55,9 +56,9 @@ test_fp = os.path.join(DATAPATH, "%s_test.npy" % DATASET)
 train_fpl = os.path.join(DATAPATH, "%s_target_train.npy" % DATASET)
 test_fpl = os.path.join(DATAPATH, "%s_target_test.npy" % DATASET)
 
-GRAB_MODELS = {"hidden8": 2,
-               "hidden4": 5, 
-               "output" : 7}
+GRAB_MODELS = {"hidden": 2,
+               "output": 4}#,
+               # "output" : 7}
 
 
 def corr(A, B):
@@ -74,7 +75,7 @@ test_data = np.load(test_fp)
 test_label = np.load(test_fpl)
 test_label_expaned = []
 num_subj = len(train_data)
-num_train_states = int(np.ceil(len(train_data) / BATCH))
+num_train_states = int(np.floor(len(train_data) / BATCH))
 
 gathered_train = {grab: [] for grab in GRAB_MODELS.keys()}
 gathered_test = {grab: [] for grab in GRAB_MODELS.keys()}
@@ -87,7 +88,7 @@ all_train_acc = []
 for e in range(1, EPOCHS):
     print("On epoch %d" % e)
     filepath = os.path.join(FILE_FOLDER, FILE_FORM % (NAME, e))
-    binary = torch.load(filepath)
+    binary = torch.load(filepath, map_location='cpu')
     summary = binary.get("summary")
     train_loss = summary.get("train").get("losses").get(NETNAME)
     train_acc = summary.get("train").get("%s_accuracy" % NAME)[-1] if ISCLASSIFIER else 0
@@ -176,6 +177,7 @@ for t in range(EPOCHS - WINSIZE - 1):
             all_subject_cov[grab][subject_index][t] = np.var(subjects[subject_index])
 # End measuring windowed metrics
 # Exemplars
+input('stop')
 do_exemplars = True
 for grab in list(GRAB_MODELS.keys()) + ['all']:
     if do_exemplars:
@@ -186,7 +188,10 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
             X_ex[grab] += [Xs[grab][subject_index][lm] for lm in LM]
     else:
         X_ex[grab] = X[grab]
+    if len(X_ex[grab]) <= 2:
+        X_ex[grab] = random.sample(X[grab],int( np.floor(len(X[grab])*0.01)))
 # End Exemplars
+
 
 plt.set_cmap("jet")
 C = {}
@@ -348,7 +353,7 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
             median_acts[li].append(copy.deepcopy(median_act))
 
             fig, ax = plt.subplots()
-            img = ax.imshow(medians[li][k_i], vmin=-1, vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],0,0))
+            img = ax.imshow(medians[li][k_i], vmin=-1, vmax=1, interpolation=None, extent=(0,LAYER_SIZES[grab],LAYER_SIZES[grab],0))
 
             ax.autoscale(False)
             ax.set_xticks(range(LAYER_SIZES[grab]))
@@ -408,7 +413,7 @@ for grab in list(GRAB_MODELS.keys()) + ['all']:
     fig, ax = plt.subplots(1,1)
     plots = []
     for li, l in enumerate(np.unique(train_label)):
-        plots.append(ax[0].plot(group_states[li]))
+        plots.append(ax.plot(group_states[li]))
     ax.legend(plots, list(np.unique(train_label)))
     plt.savefig("%s/groups/%s_aggregate_group_states_%s.png" % (DATASET, DATASET, grab))
     plt.close('all')
